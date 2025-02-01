@@ -39,4 +39,55 @@ jobs:
           name: glfw-bin
 
       - name: Download GLFW (if needed)
-        if
+        if: matrix.glfw_required && steps.download-artifact.outcome == 'failure'
+        run: |
+          Invoke-WebRequest -Uri ${{ env.GLFW_URL }} -OutFile ${{ env.GLFW_FILE }}
+          7z x ${{ env.GLFW_FILE }}
+
+      - name: Configure build
+        run: |
+        ./premake5 vs2019 --with-librw --no-full-paths --glfwdir32=${{ env.GLFW_BASE }}
+
+      - name: Build
+        run: |
+          msbuild -m build/reVC.sln /property:Configuration=${{ matrix.buildtype }} /property:Platform=${{ matrix.platform }}
+
+      - name: Move binaries to gamefiles
+        run: |
+          mkdir -p gamefiles
+          Copy-Item -Path "./bin/${{ matrix.platform }}/${{ matrix.buildtype }}/reVC.exe" -Destination "./gamefiles/"
+          Copy-Item -Path "./bin/${{ matrix.platform }}/${{ matrix.buildtype }}/reVC.pdb" -Destination "./gamefiles/"
+
+      - name: Move dynamic dependencies to gamefiles (if needed)
+        if: contains(matrix.platform, 'oal')
+        run: |
+          Copy-Item -Path "./vendor/mpg123/dist/Win32/libmpg123-0.dll" -Destination "./gamefiles/"
+          Copy-Item -Path "./vendor/openal-soft/dist/Win32/OpenAL32.dll" -Destination "./gamefiles/"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4 # Updated to v4
+        with:
+          name: reVC_${{ matrix.buildtype }}_${{ matrix.platform }}
+          path:./gamefiles/*
+
+  build_glfw:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4 # Updated to v4
+        with:
+          repository: glfw/glfw
+          path: glfw-src
+
+      - name: Build GLFW
+        run: |
+          cd glfw-src
+          mkdir build
+          cd build
+          cmake.. -A Win32
+          msbuild GLFW.sln /property:Configuration=Release
+
+      - name: Upload GLFW binary artifact
+        uses: actions/upload-artifact@v4 # Updated to v4
+        with:
+          name: glfw-bin
+          path: glfw-src/build/src/Release/glfw3.dll
