@@ -26,7 +26,7 @@ jobs:
           # - os: windows-latest
           #   platform: d3d9
           #   audio: miles
-          - os: ubuntu-latest # Use ubuntu-latest
+          - os: ubuntu-latest
             platform: gl3
             gl3_gfxlib: glfw
             audio: openal
@@ -45,28 +45,27 @@ jobs:
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.platform == 'ps2' || matrix.gl3_gfxlib == 'sdl2' || matrix.audio == 'miles' }}
     steps:
-      - uses: actions/checkout@v3 # Updated action version
+      - uses: actions/checkout@v4 # Updated to v4
         with:
           submodules: true
 
       - name: Checkout Miles SDK Import Library project
-        uses: actions/checkout@v3 # Updated action version
+        uses: actions/checkout@v4 # Updated to v4
         if: ${{ matrix.audio == 'miles' }}
         with:
           repository: 'withmorten/re3mss'
           path: 're3mss'
 
-      - uses: actions/setup-python@v4 # Updated action version
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.x'
 
       - name: Use Xcode 11 as default (if needed)
-        if: startsWith(matrix.os, 'macos') # Check if Xcode 11 is still required.  Consider updating your dependencies.
+        if: startsWith(matrix.os, 'macos')
         run: |
-          # Check if Xcode 11.7 exists. If not, install it.
-          if [ ! -d "/Applications/Xcode_11.7.app" ]; then
+          if [! -d "/Applications/Xcode_11.7.app" ]; then
              echo "Xcode 11.7 not found. You'll need to install it manually or adjust the workflow."
-             exit 1 # Fail the workflow if Xcode 11.7 is essential.
+             exit 1
           fi
           sudo xcode-select --switch /Applications/Xcode_11.7.app
 
@@ -77,10 +76,10 @@ jobs:
           conan config set log.print_run_commands=True
           conan config set general.revisions_enabled=1
           conan remote add bincrafters https://bincrafters.jfrog.io/artifactory/api/conan/public-conan
-          # conan remote add madebr_ps2dev https://api.bintray.com/conan/madebr/ps2dev # Bintray is down.  Find an alternative or remove this line.
+          # conan remote add madebr_ps2dev https://api.bintray.com/conan/madebr/ps2dev # Bintray is down
 
-      - name: Add os=playstation2 + gcc.version=3.2 to .conan/settings.yml (if needed)
-        if: matrix.platform == 'ps2' # Only run for PS2 builds
+      - name: Add os=playstation2 + gcc.version=3.2 to.conan/settings.yml (if needed)
+        if: matrix.platform == 'ps2'
         shell: python
         run: |
           import os, yaml
@@ -94,7 +93,7 @@ jobs:
       - name: Create host profile
         shell: bash
         run: |
-          if [[ "${{ matrix.platform }}" == "ps2" ]]; then # Use [[ ]] for bash string comparison
+          if [[ "${{ matrix.platform }}" == "ps2" ]]; then
             cp vendor/librw/conan/playstation2 host_profile
           else
             cp ~/.conan/profiles/default host_profile
@@ -116,7 +115,7 @@ jobs:
 
       - name: Download/build dependencies (Conan install)
         run: |
-          conan install ${{ github.workspace }} reVC/master@ -if build -o reVC:audio=${{ matrix.audio }} -o librw:platform=${{ matrix.platform }} -o librw:gl3_gfxlib=${{ matrix.gl3_gfxlib || 'glfw' }} --build missing -pr:h ./host_profile -pr:b default -s reVC:build_type=RelWithDebInfo -s librw:build_type=RelWithDebInfo
+          conan install ${{ github.workspace }} reVC/master@ -if build -o reVC:audio=${{ matrix.audio }} -o librw:platform=${{ matrix.platform }} -o librw:gl3_gfxlib=${{ matrix.gl3_gfxlib || 'glfw' }} --build missing -pr:h./host_profile -pr:b default -s reVC:build_type=RelWithDebInfo -s librw:build_type=RelWithDebInfo
         env:
           CONAN_SYSREQUIRES_MODE: enabled
 
@@ -129,12 +128,12 @@ jobs:
           conan package ${{ github.workspace }} -if build -bf build -pf package
 
       - name: Create binary package (CPack)
-        working-directory: ./build
+        working-directory:./build
         run: |
           cpack -C RelWithDebInfo
 
       - name: Archive binary package (GitHub Artifacts)
-        uses: actions/upload-artifact@v3 # Updated action version
+        uses: actions/upload-artifact@v4 # Updated to v4
         with:
           name: "${{ matrix.os }}-${{ matrix.platform }}"
           path: build/*.tar.xz
