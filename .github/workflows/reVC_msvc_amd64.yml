@@ -1,7 +1,6 @@
 name: reVC premake amd64
 
 on:
-  workflow_dispatch:
   pull_request:
   push:
   release:
@@ -15,7 +14,7 @@ env:
 
 jobs:
   build:
-    runs-on: windows-latest # Use windows-latest
+    runs-on: windows-latest
     strategy:
       matrix:
         platform: [win-amd64-librw_d3d9-oal, win-amd64-librw_gl3_glfw-oal]
@@ -26,28 +25,28 @@ jobs:
 
     steps:
       - name: Set up MSBuild
-        uses: microsoft/setup-msbuild@v2 # Updated action version
+        uses: microsoft/setup-msbuild@v2
 
       - name: Checkout code
-        uses: actions/checkout@v3 # Updated action version
+        uses: actions/checkout@v3
         with:
           submodules: 'true'
 
       - name: Download GLFW (if needed)
         if: matrix.glfw_required
-        uses: actions/download-artifact@v3 # Use download-artifact if GLFW is already built.
+        uses: actions/download-artifact@v3 # For downloading cached GLFW
         with:
           name: glfw-bin-amd64
 
       - name: Download GLFW (if needed)
-        if: matrix.glfw_required && steps.download-artifact.outcome == 'failure' # Only download if artifact isn't present
+        if: matrix.glfw_required && steps.download-artifact.outcome == 'failure'
         run: |
           Invoke-WebRequest -Uri ${{ env.GLFW_URL }} -OutFile ${{ env.GLFW_FILE }}
           7z x ${{ env.GLFW_FILE }}
 
       - name: Configure build
         run: |
-          ./premake5 vs2019 --with-librw --no-full-paths --glfwdir64=${{ env.GLFW_BASE }}
+        ./premake5 vs2019 --with-librw --no-full-paths --glfwdir64=${{ env.GLFW_BASE }}
 
       - name: Build
         run: |
@@ -55,7 +54,7 @@ jobs:
 
       - name: Move binaries to gamefiles
         run: |
-          mkdir -p gamefiles # Ensure directory exists
+          mkdir -p gamefiles
           Copy-Item -Path "./bin/${{ matrix.platform }}/${{ matrix.buildtype }}/reVC.exe" -Destination "./gamefiles/"
           Copy-Item -Path "./bin/${{ matrix.platform }}/${{ matrix.buildtype }}/reVC.pdb" -Destination "./gamefiles/"
 
@@ -65,18 +64,17 @@ jobs:
           Copy-Item -Path "./vendor/openal-soft/dist/Win64/OpenAL32.dll" -Destination "./gamefiles/"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3 # Updated action version
+        uses: actions/upload-artifact@v4 # Correct version!
         with:
           name: reVC_${{ matrix.buildtype }}_${{ matrix.platform }}
-          path: ./gamefiles/*
+          path:./gamefiles/*
 
-# Example of building GLFW separately and caching it (optional but recommended)
   build_glfw_amd64:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
         with:
-          repository: glfw/glfw # Or your fork
+          repository: glfw/glfw
           path: glfw-src
 
       - name: Build GLFW
@@ -84,11 +82,11 @@ jobs:
           cd glfw-src
           mkdir build
           cd build
-          cmake .. -A x64 # Important: Specify x64 for 64-bit build
+          cmake.. -A x64
           msbuild GLFW.sln /property:Configuration=Release
 
       - name: Upload GLFW binary artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4 # Correct version!
         with:
           name: glfw-bin-amd64
-          path: glfw-src/build/src/Release/glfw3.dll # Adjust path as needed
+          path: glfw-src/build/src/Release/glfw3.dll
