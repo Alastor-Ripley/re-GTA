@@ -1,6 +1,7 @@
 name: reVC premake x86
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
   release:
