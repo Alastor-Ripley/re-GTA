@@ -1,7 +1,6 @@
 name: reVC premake x86
 
 on:
-  workflow_dispatch:
   pull_request:
   push:
   release:
@@ -15,7 +14,7 @@ env:
 
 jobs:
   build:
-    runs-on: windows-latest # Use windows-latest for up-to-date image
+    runs-on: windows-latest
     strategy:
       matrix:
         platform: [win-x86-librw_d3d9-mss, win-x86-librw_gl3_glfw-mss, win-x86-librw_d3d9-oal, win-x86-librw_gl3_glfw-oal]
@@ -26,70 +25,18 @@ jobs:
 
     steps:
       - name: Set up MSBuild
-        uses: microsoft/setup-msbuild@v2 # Updated action version
+        uses: microsoft/setup-msbuild@v2
 
       - name: Checkout code
-        uses: actions/checkout@v3 # Updated action version
+        uses: actions/checkout@v4 # Updated to v4
         with:
           submodules: 'true'
 
       - name: Download GLFW (if needed)
         if: matrix.glfw_required
-        uses: actions/download-artifact@v3 # Use download-artifact if GLFW is already built.
+        uses: actions/download-artifact@v3
         with:
           name: glfw-bin
 
       - name: Download GLFW (if needed)
-        if: matrix.glfw_required && steps.download-artifact.outcome == 'failure' # Only download if artifact isn't present
-        run: |
-          Invoke-WebRequest -Uri ${{ env.GLFW_URL }} -OutFile ${{ env.GLFW_FILE }}
-          7z x ${{ env.GLFW_FILE }}
-
-      - name: Configure build
-        run: |
-          ./premake5 vs2019 --with-librw --no-full-paths --glfwdir32=${{ env.GLFW_BASE }}
-
-      - name: Build
-        run: |
-          msbuild -m build/reVC.sln /property:Configuration=${{ matrix.buildtype }} /property:Platform=${{ matrix.platform }}
-
-      - name: Move binaries to gamefiles
-        run: |
-          mkdir -p gamefiles # Ensure directory exists
-          Copy-Item -Path "./bin/${{ matrix.platform }}/${{ matrix.buildtype }}/reVC.exe" -Destination "./gamefiles/"
-          Copy-Item -Path "./bin/${{ matrix.platform }}/${{ matrix.buildtype }}/reVC.pdb" -Destination "./gamefiles/"
-
-      - name: Move dynamic dependencies to gamefiles (if needed)
-        if: contains(matrix.platform, 'oal')
-        run: |
-          Copy-Item -Path "./vendor/mpg123/dist/Win32/libmpg123-0.dll" -Destination "./gamefiles/"
-          Copy-Item -Path "./vendor/openal-soft/dist/Win32/OpenAL32.dll" -Destination "./gamefiles/"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3 # Updated action version
-        with:
-          name: reVC_${{ matrix.buildtype }}_${{ matrix.platform }}
-          path: ./gamefiles/*
-
-# Example of building GLFW separately and caching it (optional but recommended)
-  build_glfw:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          repository: glfw/glfw # Or your fork
-          path: glfw-src
-
-      - name: Build GLFW
-        run: |
-          cd glfw-src
-          mkdir build
-          cd build
-          cmake .. -A Win32 # Or Win64 if needed
-          msbuild GLFW.sln /property:Configuration=Release
-
-      - name: Upload GLFW binary artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: glfw-bin
-          path: glfw-src/build/src/Release/glfw3.dll # Adjust path as needed
+        if
