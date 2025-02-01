@@ -1,73 +1,86 @@
 name: reVC conan+cmake
+
 on:
   workflow_dispatch:
   pull_request:
   push:
   release:
-    types: published
+    types: [published]
+
 jobs:
   build-cmake:
     strategy:
       matrix:
         include:
-          - os: 'windows-latest'
-            platform: 'gl3'
-            gl3_gfxlib: 'glfw'
-            audio: 'openal'
-#          - os: 'windows-latest'
-#            platform: 'gl3'
-#            gl3_gfxlib: 'sdl2'
-#            audio: 'openal'
-          - os: 'windows-latest'
-            platform: 'd3d9'
-            audio: 'openal'
-#          - os: 'windows-latest'
-#            platform: 'd3d9'
-#            audio: 'miles'
-          - os: 'ubuntu-18.04'
-            platform: 'gl3'
-            gl3_gfxlib: 'glfw'
-            audio: 'openal'
-#          - os: 'ubuntu-18.04'
-#            platform: 'gl3'
-#            gl3_gfxlib: 'sdl2'
-#            audio: 'openal'
-          - os: 'macos-latest'
-            platform: 'gl3'
-            gl3_gfxlib: 'glfw'
-            audio: 'openal'
-#          - os: 'macos-latest'
-#            platform: 'gl3'
-#            gl3_gfxlib: 'sdl2'
-#            audio: 'openal'
+          - os: windows-latest
+            platform: gl3
+            gl3_gfxlib: glfw
+            audio: openal
+          # - os: windows-latest
+          #   platform: gl3
+          #   gl3_gfxlib: sdl2
+          #   audio: openal
+          - os: windows-latest
+            platform: d3d9
+            audio: openal
+          # - os: windows-latest
+          #   platform: d3d9
+          #   audio: miles
+          - os: ubuntu-latest # Use ubuntu-latest
+            platform: gl3
+            gl3_gfxlib: glfw
+            audio: openal
+          # - os: ubuntu-latest
+          #   platform: gl3
+          #   gl3_gfxlib: sdl2
+          #   audio: openal
+          - os: macos-latest
+            platform: gl3
+            gl3_gfxlib: glfw
+            audio: openal
+          # - os: macos-latest
+          #   platform: gl3
+          #   gl3_gfxlib: sdl2
+          #   audio: openal
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.platform == 'ps2' || matrix.gl3_gfxlib == 'sdl2' || matrix.audio == 'miles' }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3 # Updated action version
         with:
           submodules: true
-      - name: "Checkout Miles SDK Import Library project"
-        uses: actions/checkout@v2
+
+      - name: Checkout Miles SDK Import Library project
+        uses: actions/checkout@v3 # Updated action version
         if: ${{ matrix.audio == 'miles' }}
         with:
           repository: 'withmorten/re3mss'
           path: 're3mss'
-      - uses: actions/setup-python@v2
+
+      - uses: actions/setup-python@v4 # Updated action version
         with:
           python-version: '3.x'
-      - name: "Use XCode 11 as default (conan-center-index does not provide XCode 12 binaries at the moment)"
-        if: startsWith(matrix.os, 'macos')
+
+      - name: Use Xcode 11 as default (if needed)
+        if: startsWith(matrix.os, 'macos') # Check if Xcode 11 is still required.  Consider updating your dependencies.
         run: |
+          # Check if Xcode 11.7 exists. If not, install it.
+          if [ ! -d "/Applications/Xcode_11.7.app" ]; then
+             echo "Xcode 11.7 not found. You'll need to install it manually or adjust the workflow."
+             exit 1 # Fail the workflow if Xcode 11.7 is essential.
+          fi
           sudo xcode-select --switch /Applications/Xcode_11.7.app
-      - name: "Setup conan"
+
+      - name: Set up Conan
         run: |
           python -m pip install conan
           conan config init
           conan config set log.print_run_commands=True
           conan config set general.revisions_enabled=1
           conan remote add bincrafters https://bincrafters.jfrog.io/artifactory/api/conan/public-conan
-#          conan remote add madebr_ps2dev https://api.bintray.com/conan/madebr/ps2dev
-      - name: "Add os=playstation2 + gcc.version=3.2 to .conan/settings.yml"
+          # conan remote add madebr_ps2dev https://api.bintray.com/conan/madebr/ps2dev # Bintray is down.  Find an alternative or remove this line.
+
+      - name: Add os=playstation2 + gcc.version=3.2 to .conan/settings.yml (if needed)
+        if: matrix.platform == 'ps2' # Only run for PS2 builds
         shell: python
         run: |
           import os, yaml
@@ -77,41 +90,51 @@ jobs:
           yml["compiler"]["gcc"]["version"].append("3.2")
           yml["compiler"]["gcc"]["version"].sort()
           yaml.safe_dump(yml, open(settings_path, "w"))
-      - name: "Create host profile"
+
+      - name: Create host profile
         shell: bash
         run: |
-          if test "${{ matrix.platform }}" = "ps2"; then
+          if [[ "${{ matrix.platform }}" == "ps2" ]]; then # Use [[ ]] for bash string comparison
             cp vendor/librw/conan/playstation2 host_profile
           else
             cp ~/.conan/profiles/default host_profile
           fi
-      - name: "Export Playstation 2 CMake toolchain conan recipe"
+
+      - name: Export Playstation 2 CMake toolchain Conan recipe (if needed)
+        if: matrix.platform == 'ps2'
         run: |
           conan export vendor/librw/cmake/ps2/cmaketoolchain ps2dev-cmaketoolchain/master@
-      - name: "Export librw conan recipe"
+
+      - name: Export librw Conan recipe
         run: |
           conan export vendor/librw librw/master@
-      - name: "Export Miles SDK conan recipe"
+
+      - name: Export Miles SDK Conan recipe (if needed)
         if: ${{ matrix.audio == 'miles' }}
         run: |
           conan export re3mss miles-sdk/master@
-      - name: "Download/build dependencies (conan install)"
+
+      - name: Download/build dependencies (Conan install)
         run: |
           conan install ${{ github.workspace }} reVC/master@ -if build -o reVC:audio=${{ matrix.audio }} -o librw:platform=${{ matrix.platform }} -o librw:gl3_gfxlib=${{ matrix.gl3_gfxlib || 'glfw' }} --build missing -pr:h ./host_profile -pr:b default -s reVC:build_type=RelWithDebInfo -s librw:build_type=RelWithDebInfo
         env:
           CONAN_SYSREQUIRES_MODE: enabled
-      - name: "Build reVC (conan build)"
+
+      - name: Build reVC (Conan build)
         run: |
           conan build ${{ github.workspace }} -if build -bf build -pf package
-      - name: "Package reVC (conan package)"
+
+      - name: Package reVC (Conan package)
         run: |
           conan package ${{ github.workspace }} -if build -bf build -pf package
-      - name: "Create binary package (cpack)"
+
+      - name: Create binary package (CPack)
         working-directory: ./build
         run: |
           cpack -C RelWithDebInfo
-      - name: "Archive binary package (github artifacts)"
-        uses: actions/upload-artifact@v2
+
+      - name: Archive binary package (GitHub Artifacts)
+        uses: actions/upload-artifact@v3 # Updated action version
         with:
           name: "${{ matrix.os }}-${{ matrix.platform }}"
           path: build/*.tar.xz
