@@ -1,6 +1,7 @@
 name: reVC premake amd64
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
   release:
